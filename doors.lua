@@ -291,7 +291,7 @@ function makeInventoryWidget()
 	 qty=v, 
 	 label={-1, k.spr, 
         15, " "..k.name, 
-        14, " ["..v.."]"},
+        14, " ["..v.."]"}, --, 15, iff(isEquipped(k), "E", "o")},
 	 callback=function()
 		if k.usable then
 		  k.usable.onUse(k)
@@ -302,6 +302,7 @@ function makeInventoryWidget()
 		  else
 		    equip(k) 
 		  end
+		  refreshInvWidget()
 		end
 	 end
    }
@@ -326,7 +327,7 @@ end
  pg={
   maxHp = 10,
   hp=10,
-  level=2,
+  level=1,
   inventory={
   },
   equip={ -- map PLACE, ITEM
@@ -357,7 +358,7 @@ function ricalcolaPg()
  if weapon then
   base = weapon.attack
  else
-  base = range(0,5 ) 
+  base = range(1,5 ) 
  end
  local l = pg.level
  pg.attack = range(base.min+l, base.max+l) 
@@ -610,8 +611,14 @@ end
 
 function killMonster()
  local l = calcLoot(game.monster.loot)
+ local q
+ if type(l.qty)=="number" then
+   q = l.qty
+ else
+   q = rnd(l.qty)
+ end
  game.loot = {
-  qty = rnd(l.qty),
+  qty = q,
   item = l.item
  }
  game.monster = nil
@@ -744,26 +751,53 @@ function ourTurnActions(action)
   return r
 end
 
+function potion_healing(item, hp)
+     log:add({15, "You drink ",14, item.name, 15, "! ", 6, "+"..hp})
+     log:add({15, "  You feel much better now."})
+     inventoryAdd(item, -1)
+     damage(pg, -hp)
+     anims:add(makeAnimRaisingString("+"..hp, 205, 50,6))
+   end
+
+function food_healing(item, hp)
+   log:add({15, "You eat ",14, item.name, 15, "! ", 6, "+"..hp})
+   log:add({15, "  You feel much better now."})
+   inventoryAdd(item, -1)
+   damage(pg, -hp)
+   anims:add(makeAnimRaisingString("+"..hp, 205, 50,6))
+end
 
 ITEMS = {
  Hamburger={
   name="Tasty Hamburger",
   spr=314,
-  flavour={"The healthy snack","of choice for fine","adventurers.","", "Restore 1/4 health."},
+  flavour={"The healthy snack","of choice for fine","adventurers.","", "Heal 10 hp."},
   usable={
     name= "Eat",
  onUse=function(item)
-   log:add({15, "You eat an ",14, item.name, 15, "! ", 6, "+5"})
-   log:add({15, "  You feel much better now."})
-   inventoryAdd(item, -1)
-   damage(pg, -5)
-   anims:add(makeAnimRaisingString("+5", 205, 50,6))
+	  food_healing(item, 10)
+ end
+  }
+ },
+ Cheese={
+  name="Cheese",
+  spr=317,
+  flavour={"Heal 4 hp."},
+  usable={
+    name= "Eat",
+ onUse=function(item)
+	  food_healing(item, 4)
  end
   }
  },
  Gold={
   name="Gold",
   spr=264
+ },
+ Key={
+  name="Key",
+  flavour={"They open doors"},
+  spr=319
  },
  Pants={
   name="Fancy Panties",
@@ -773,6 +807,15 @@ ITEMS = {
     place= LEGS,
   },
   armour=1  
+ },
+ Shirt={
+  name="Shirt",
+  flavour={"The last in fashon."},
+  spr=295,
+  equip={
+    place= BODY,
+  },
+  armour=2  
  },
  Shield={
   name="Shield",
@@ -839,6 +882,15 @@ ITEMS = {
   },
   attack=range(20,30)
  },
+ Bone={
+  name="Bone",
+  spr=318,
+  flavour={"Monkey style"},
+  equip={
+    place= LEFT,
+  },
+  attack=range(8,15)
+ },
  Bomb={
   name="Bomb",
   spr=312,
@@ -848,18 +900,36 @@ ITEMS = {
     onUse=function(item) unimplemented() end
   }
  },
- Potion={
-  name="Health Potion",
-  spr=310,
+ SmallPotion={
+  name="Potion, Small",
+  spr=293,
   flavour={"Heal 10 hp."},
   combat={
     name= "Drink",
    onUse=function(item)
-     log:add({15, "You drink a ",14, item.name, 15, "! ", 6, "+10"})
-     log:add({15, "  You feel much better now."})
-     inventoryAdd(item, -1)
-     damage(pg, -10)
-     anims:add(makeAnimRaisingString("+10", 205, 50,6))
+     potion_healing(item, 10);
+   end
+  }
+ },
+ MediumPotion={
+  name="Potion, Medium",
+  spr=310,
+  flavour={"Heal 20 hp."},
+  combat={
+    name= "Drink",
+   onUse=function(item)
+     potion_healing(item, 20);
+   end
+  }
+ },
+ BigPotion={
+  name="Potion, Big",
+  spr=294,
+  flavour={"Heal 100 hp."},
+  combat={
+    name= "Drink",
+   onUse=function(item)
+     potion_healing(item, 100);
    end
   }
  }
@@ -882,8 +952,7 @@ MONSTERS = {
    attack = range(1,3),
    maxHpRange = range(5,8),
    loot = {
-  { prob=8, item=ITEMS.Hamburger, qty=1 },
-  { prob=8, item=ITEMS.Stick, qty=1 },
+  { prob=5, item=ITEMS.Cheese, qty=1 },
   { prob=10, item=ITEMS.Gold, qty=range(1,3) },
    }
  },
@@ -894,7 +963,7 @@ MONSTERS = {
    attack = range(2,5),
    maxHpRange = range(15,20),
    loot = {
-  { prob=1, item=ITEMS.Potion, qty=1 },
+  { prob=1, item=ITEMS.MediumPotion, qty=1 },
   { prob=5, item=ITEMS.Gold, qty=range(5,10) },
    }
  },
@@ -948,11 +1017,17 @@ STEP = {
 
 pg.inventory = {
  [ITEMS.Gold] = 1,
- [ITEMS.Potion] = 1,
+ [ITEMS.SmallPotion] = 1,
+ [ITEMS.MediumPotion] = 1,
+ [ITEMS.BigPotion] = 1,
  [ITEMS.Pants] = 1,
+ [ITEMS.Key] = 50,
  [ITEMS.Stick] = 1,
+ [ITEMS.Bone] = 1,  
+ [ITEMS.Cheese] = 1, 
  [ITEMS.Armour] = 1,
  [ITEMS.Bomb] = 1,
+ [ITEMS.Shirt] = 1, 
  [ITEMS.Mace] = 1,
  [ITEMS.Helm] = 1,
  [ITEMS.Hamburger] = 1,
@@ -1122,10 +1197,14 @@ ricalcolaPg()
 -- 032:0003330000737370000333000000400000004000000040000000400000004000
 -- 033:000000000aa00330a3333333a037730300333300003773000033330000377300
 -- 034:0000000000333300004444000040440000404400004044001440044144400444
--- 048:0000000f000000fd00000dd00000dd000d0dd00000dd000004d00000440d0000
+-- 036:004444000034430000300300003c630003cccc3003c6cc3003ccc63000333300
+-- 037:0044440000344300003003000036630003666630036666300366663000333300
+-- 038:0044440000344300033003303666666336666663366666633666666303333330
+-- 039:00f00f0000f00f0000ffff000ffffff00ffffcf00ffffcf00ffcfff00ffffff0
+-- 048:f0000000df0000000dd0000000dd0000000dd0d00000dd0000000d400000d044
 -- 049:0aaaaaa00a2662a00a2662a00a2662a00a2662a000a66a0000a66a00000aa000
 -- 050:0000000000000000effffefefffefffffeffffeafffafffa0ef00fa000000000
--- 051:0000000000500044004044000004000000400000040500004400000000000000
+-- 051:0000000044000500004404000000400000000400000050400000004400000000
 -- 052:0000000000444400047447400444444004444440047447400044440000000000
 -- 053:0006600003366770037667773777777737777777700000070000000000000000
 -- 054:0044440000344300003003000036630003666630366666633666666303333330
@@ -1135,6 +1214,9 @@ ricalcolaPg()
 -- 058:0044440004444440444444446665566699999999119911914444444404444440
 -- 059:0000000000000000003333300337333003733333333337333333337303333330
 -- 060:0000000000000000003333300339333003933333333339333333339303333330
+-- 061:00000000099000009999900099999990eee999999e9eeeee0eeee9e900e9eee0
+-- 062:00ff0000ffff0000fff0000000ff0000000ff0000000ffff00000fff00000ff0
+-- 063:000000000e000000e0900000909999ff90900909090000090000000000000000
 -- 064:5555555555555555555555555555555555555555555555555555555555555555
 -- 065:5555555555555555555555555555555555555555555555555555555555555555
 -- 066:5555555555555555555555555555555555555555555555555555555555555555
