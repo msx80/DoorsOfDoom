@@ -150,6 +150,7 @@ log = {
 }
 
 invWidget = nil
+craftWidget = nil
 
 -- crea un widget con item selezionabili. Gli item devono avere una "label"
 -- di tipo richtext ed eventualmente un "callback" che viene chiamato
@@ -162,6 +163,9 @@ function makeWidget(items, maxShown, xcallback, extraDraw)
     if self.current > #items then
 	  self.current = #items
 	end
+	if self.scroll> #items-maxShown then
+	 self.scroll = #items-maxShown
+	end
     if #items > maxShown then 
 	  
 	  while self.current-self.scroll>maxShown do
@@ -170,6 +174,8 @@ function makeWidget(items, maxShown, xcallback, extraDraw)
 	  while self.current-self.scroll<=0 do
 	    self.scroll = self.scroll -1
 	  end
+	else
+	  self.scroll = 0
 	end
   end,
   update=function(self)
@@ -276,8 +282,10 @@ end
 function refreshInvWidget()
  if invWidget then
   local oldCurrent = invWidget.current
+  local oldScroll = invWidget.scroll
   invWidget = makeInventoryWidget()
   invWidget.current = oldCurrent
+  invWidget.scroll = oldScroll
   invWidget:ensureOk()
  end  
 end
@@ -317,6 +325,39 @@ local w=makeWidget(inv, 10, function() invWidget = nil end, function(item, x, y)
 return w
 end
 
+function makeCraftWidget()
+ 
+ -- label = {-1, 304,7,"x2 ", -1, 305, 7, "x4 ", -1, 313, 7, "x4 "},
+ local inv = {
+   
+ }
+ for i=1,#CRAFTS do
+  local s = {-1, CRAFTS[i].output.spr, 15, " = "}
+
+  for k,v in pairs(CRAFTS[i].ingredients) do
+    table.insert(s, -1)
+	table.insert(s, k.spr)
+    table.insert(s, 15)
+	table.insert(s, " "..v.." ")
+  end
+  table.insert(inv, { label = s, callback = function()
+    craftWidget = nil
+    doCraft(CRAFTS[i]) 
+  end})
+ end
+ 
+ 
+ local w=makeWidget(inv, 10, function() craftWidget = nil end, function(item, x, y)
+  --drawInvBackground(item.item,x,y) 
+  rect(x-12,y-12,104,104,0)
+  rectb(x-11,y-11,102,102,9)
+  print("Buy/Craft what?", x,y-9,6)
+  
+ end)
+
+return w
+end
+
 
 function makeCommandWidget(items)
   widget=makeWidget(items, 9, nil, nil)
@@ -327,7 +368,6 @@ end
  pg={
   maxHp = 10,
   hp=10,
-  level=1,
   inventory={
   },
   equip={ -- map PLACE, ITEM
@@ -344,7 +384,7 @@ game={
  door=false,  -- open ?
  monster=nil, -- current monster behind door
  loot=nil,     -- current loot displayed
- 
+ effects={} -- key: effect, value: turns
 }
 
 function ricalcolaPg()
@@ -360,8 +400,11 @@ function ricalcolaPg()
  else
   base = range(1,5 ) 
  end
- local l = pg.level
- pg.attack = range(base.min+l, base.max+l) 
+ local b = 0
+ if isEffectActive(EFFECTS.MUSCLES) then
+  b = 5
+ end
+ pg.attack = range(base.min+b, base.max+b) 
  
  -- armour
  local arm = 0
@@ -372,7 +415,7 @@ function ricalcolaPg()
  pg.armour = arm
  
  -- maxHp
- pg.maxHp = pg.level*10
+ --pg.maxHp = pg.level*10
  if pg.hp > pg.maxHp then
    pg.hp = pg.maxHp
  end
@@ -456,11 +499,11 @@ function printStats(x, y)
  print("Armour",x,y+12,12, true, 1, true)
  printSmallRight(pg.armour,x+63,y+12,12)
 
- print("Exper.",x,y+18,13, true, 1, true)
- printSmallRight("boh",x+63,y+18,13)
+-- print("Exper.",x,y+18,13, true, 1, true)
+-- printSmallRight("boh",x+63,y+18,13)
 
- print("Gold",x,y+24,9, true, 1, true)
- printSmallRight(pg.inventory[ITEMS.Gold],x+63,y+24,9)
+ print("Keys",x,y+18,9, true, 1, true)
+ printSmallRight(pg.inventory[ITEMS.Key],x+63,y+18,9)
  
 end
 
@@ -477,6 +520,17 @@ function drawEquip(cx, cy)
   if eq[i] then sp = eq[i].spr end
   spr(sp,cx+placeOffsets[i][1], cy+placeOffsets[i][2], 8)
  end
+
+ -- effects
+ local ey = cy
+ for k,v in pairs(game.effects) do
+   spr(k.spr, cx+44, ey,8)
+   print(v, cx+44+9, ey+1)
+   ey = ey + 9
+ end
+ 
+ --rect(cx+44, cy+9,8,8,8)
+ --print("2", cx+44+9, cy+1+9)
 
 end
 
@@ -518,6 +572,8 @@ function TIC()
    -- route inputs to widgets only if no animation is running
    if invWidget then
      invWidget:update()
+   elseif craftWidget then
+    craftWidget:update()
    else
      widget:update()
    end
@@ -528,6 +584,10 @@ function TIC()
  else
     drawDoor(game.door)
     drawGame()
+	if craftWidget then
+	  craftWidget:draw(80,12)
+	end
+
  end
  
  anims:update() 
@@ -551,6 +611,7 @@ function onOpenDoorEnter()
   game.monster.maxHp = rnd(game.monster.maxHpRange)
   game.monster.hp = game.monster.maxHp
   log:add({15,"You open the door and find ",5,game.monster.name,15,"!"})
+  inventoryAdd(ITEMS.Key, -1)  
 end
 
 
@@ -570,7 +631,11 @@ function damage(ent, val)
 end
 
 function doEnemyTurn()
-   local dmg = rnd(game.monster.attack)
+ if isEffectActive(EFFECTS.SMOKE) then
+  log:add({5,game.monster.name,15," can't find you becouse of ",
+ 9,EFFECTS.SMOKE.name })
+ else
+ local dmg = rnd(game.monster.attack)
  local blocked = dmg * pg.armour // 100
  local realdmg = math.max(0, dmg - blocked)
  damage(pg, realdmg)
@@ -589,7 +654,7 @@ function doEnemyTurn()
      enterStep(STEP.OURTURN)
    end
   end));
-
+ end
 end
 
 function calcLoot(l)
@@ -668,7 +733,6 @@ function openDoorActions()
  {label="Continue", callback = function () enterStep(STEP.OURTURN) end },
   }
   return r
-  
 end
 
 
@@ -679,8 +743,9 @@ function outDoorActions()
  {label="Inventory", callback=function()
    invWidget = makeInventoryWidget()
   end},
- {label="Quit", callback=unimplemented}
-  }
+ {label="Quit", callback=unimplemented},
+ {label="Buy/Craft", callback=function()craftWidget = makeCraftWidget() end}
+ }
   -- item actions
   for k,v in pairs(pg.inventory) do
     if k.usable then
@@ -712,20 +777,39 @@ function doFlee()
 end
 
 function doAttack()
-    local dmg = rnd(pg.attack)
-    damage(game.monster, dmg)
-    log:add({15,"You deal ",6,dmg,15," damages to ",5,game.monster.name,15,"!"})
-    anims:add(makeAnimRaisingString("-"..dmg, 50, 50, 6, function(self)
-     if game.monster.hp <= 0 then
+ local dmg = rnd(pg.attack)
+ damage(game.monster, dmg)
+ log:add({15,"You deal ",6,dmg,15," damages to ",5,game.monster.name,15,"!"})
+ anims:add(makeAnimRaisingString("-"..dmg, 50, 50, 6, function(self)
+   if game.monster.hp <= 0 then
     sfx(2,60,15)
     log:add({15,"You defeated ",6,game.monster.name,15,"!"})
     killMonster()
     enterStep(STEP.LOOT)
-     else
+   else
     doEnemyTurn()
-     end
-    end));
-   sfx(1,15,15)
+   end
+   for k,v in pairs(game.effects) do
+    if v == 1 then
+	 game.effects[k] = nil
+	else
+     game.effects[k] = v-1
+	end
+   end
+
+ end));
+ sfx(1,15,15)
+   
+end
+
+function isEffectActive(effect)
+ return game.effects[effect] ~= nil
+end
+
+function addEffect(effect)
+  game.effects[effect] = effect.turns;
+  log:add({15,"Effect ",9,effect.name,15," started!"})
+  ricalcolaPg()
 end
 
 function ourTurnActions(action)
@@ -749,6 +833,15 @@ function ourTurnActions(action)
   end
 
   return r
+end
+
+function doCraft(c)
+ for k,v in pairs(c.ingredients) do
+   inventoryAdd(k, -v)
+ end
+ inventoryAdd(c.output, 1)
+ log:add({15, "You obtain ", 10, c.output.name})
+ makeCommandWidget(currentStep.actions())
 end
 
 function potion_healing(item, hp)
@@ -776,6 +869,7 @@ ITEMS = {
     name= "Eat",
  onUse=function(item)
 	  food_healing(item, 10)
+	  addEffect(EFFECTS.MUSCLES)
  end
   }
  },
@@ -790,9 +884,29 @@ ITEMS = {
  end
   }
  },
+ Elixir={
+  name="Elixir",
+  spr=292,
+  flavour={"The strength of","a lion.","", "+10 max hp."},
+  usable={
+    name= "Drink",
+ onUse=function(item)
+	  log:add({15, "You drink ",14, item.name, 15, "! You feel stronger!"})
+	  anims:add(makeAnimRaisingString("+10 Max!", 190, 50,6))
+	  pg.maxHp = pg.maxHp + 10
+	  inventoryAdd(item, -1)
+	  damage(pg, -10)
+ end
+  }
+ },
  Gold={
   name="Gold",
   spr=264
+ },
+ Blood={
+  name="Blood",
+  spr=265,
+  flavour={"It's always good","to bring some","around."},
  },
  Key={
   name="Key",
@@ -839,6 +953,7 @@ ITEMS = {
   equip={
     place= HEAD,
   },
+  armour=10
   
  },
  Mace={
@@ -855,6 +970,11 @@ ITEMS = {
   spr=313,
   flavour={"Always kill with", "a fresh breath"}
  },
+ Leather={
+  name="Leather",
+  spr=297,
+  flavour={"Ready to stitch"}
+ },
  Rock={
   name="Rock",
   spr=315,
@@ -862,7 +982,14 @@ ITEMS = {
  },
  SmokeBomb={
   name="Smoke Bomb",
-  spr=311
+  spr=311,
+  combat={
+    name= "Throw",
+    onUse=function(item) 
+	  addEffect(EFFECTS.SMOKE) 
+	  inventoryAdd(item, -1)
+	end
+  }
  },
  Stick={
   name="Stick",
@@ -885,7 +1012,7 @@ ITEMS = {
  Bone={
   name="Bone",
   spr=318,
-  flavour={"Monkey style"},
+  flavour={"Hit'em monkey", "style"},
   equip={
     place= LEFT,
   },
@@ -935,6 +1062,47 @@ ITEMS = {
  }
 }
 
+EFFECTS = {
+	SMOKE = {
+		spr = 270,
+		name = "SMOKE",
+		turns = 4
+	},
+	MUSCLES = {
+		spr = 268,
+		name = "MUSCLES",
+		turns = 10
+	},
+}
+
+CRAFTS = {
+	{
+		ingredients = { [ITEMS.Blood]=10},
+		output = ITEMS.Elixir
+	},
+	{
+		ingredients = { [ITEMS.Gold]=10},
+		output = ITEMS.SmallPotion
+	},
+	{
+		ingredients = { [ITEMS.Gold]=20},
+		output = ITEMS.MediumPotion
+	},
+	{
+		ingredients = { [ITEMS.Gold]=10, [ITEMS.Bone]=12},
+		output = ITEMS.Key
+	},
+	{
+		ingredients = { [ITEMS.MintLeaf]=3, [ITEMS.Stick]=1, [ITEMS.Rock]=3},
+		output = ITEMS.Shield
+	},
+	{
+		ingredients = { [ITEMS.Leather]=2},
+		output = ITEMS.Helm
+	}
+	
+}
+
 MONSTERS = {
  {
    name = "SLUG",
@@ -953,7 +1121,7 @@ MONSTERS = {
    maxHpRange = range(5,8),
    loot = {
   { prob=5, item=ITEMS.Cheese, qty=1 },
-  { prob=10, item=ITEMS.Gold, qty=range(1,3) },
+  { prob=10, item=ITEMS.Blood, qty=range(1,3) },
    }
  },
  
@@ -1017,6 +1185,7 @@ STEP = {
 
 pg.inventory = {
  [ITEMS.Gold] = 1,
+ [ITEMS.Elixir] = 1,
  [ITEMS.SmallPotion] = 1,
  [ITEMS.MediumPotion] = 1,
  [ITEMS.BigPotion] = 1,
@@ -1025,6 +1194,7 @@ pg.inventory = {
  [ITEMS.Stick] = 1,
  [ITEMS.Bone] = 1,  
  [ITEMS.Cheese] = 1, 
+ [ITEMS.Leather] = 1, 
  [ITEMS.Armour] = 1,
  [ITEMS.Bomb] = 1,
  [ITEMS.Shirt] = 1, 
@@ -1033,7 +1203,8 @@ pg.inventory = {
  [ITEMS.Hamburger] = 1,
  [ITEMS.Shield] = 1,
  [ITEMS.Rock] = 1,
- [ITEMS.SwordOfBlast] = 1,
+ [ITEMS.Blood] = 33,
+ [ITEMS.SmokeBomb] = 1,
  [ITEMS.MintLeaf] = 1,
 }
 
@@ -1187,6 +1358,10 @@ ricalcolaPg()
 -- 006:3300000033300000333330003333333033377733333377730000377300003773
 -- 007:00000000066066006cc666606c66666066c66660066666000066600000060000
 -- 008:000000000feeee00009999900feeee00f9999000eeeee000099999000f99ee00
+-- 009:000600000006600000066000006c660006c66660066666600666666000666600
+-- 012:6666666666666006666660066006660600006006000000666600066666666666
+-- 013:b0b0b0b0b0b0b0b00bb0b0bb0b0bbb0bbb0bbb0bbb0b0b0bb0bb0bb0b0bb0bb0
+-- 014:aaaaaaaaa0aa00aaa0a0000aaaa0000aa000000a0000aaaaa00aa00aaaaa00aa
 -- 016:0000000000eeee000eeeeee00eeeeee00eeeeee000eeee00000ee0000eeeeee0
 -- 017:0000000000eee00000000e00eeeeeee0000eeeeeeeeeeeee000eeee00eeee000
 -- 018:00000000000eee0000e000000eeeeeeeeeeee000eeeeeeee0eeee000000eeee0
@@ -1201,6 +1376,8 @@ ricalcolaPg()
 -- 037:0044440000344300003003000036630003666630036666300366663000333300
 -- 038:0044440000344300033003303666666336666663366666633666666303333330
 -- 039:00f00f0000f00f0000ffff000ffffff00ffffcf00ffffcf00ffcfff00ffffff0
+-- 040:00000000000b0b000666b6606cc666666c666666666666660666666600666660
+-- 041:0004400000444400444444440444444000444400004444000044440004400440
 -- 048:f0000000df0000000dd0000000dd0000000dd0d00000dd0000000d400000d044
 -- 049:0aaaaaa00a2662a00a2662a00a2662a00a2662a000a66a0000a66a00000aa000
 -- 050:0000000000000000effffefefffefffffeffffeafffafffa0ef00fa000000000
