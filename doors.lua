@@ -382,7 +382,8 @@ end
   },
   equip={ -- map PLACE, ITEM
   },
-
+  blockedRemainder=0,
+  
   -- dati calcolati
   attack = range(2,4), 
   armour = 0,
@@ -394,6 +395,7 @@ game={
  door=false,  -- open ?
  monster=nil, -- current monster behind door
  loot=nil,     -- current loot displayed
+ gold=nil, -- gold from monster
  effects={}, -- key: effect, value: turns
  level=0
 }
@@ -483,6 +485,11 @@ function drawDoor(open)
        45,-- +math.sin(t/36)*2 ,
        -1,1,0,0,4,4)
      elseif game.loot then
+
+       spr(ITEMS.Gold.spr,38,30,-1,1,0,0,1,1)
+       print("x"..game.gold, 48, 32)
+       printc("Gold", 50, 42)
+
        spr(game.loot.item.spr,38,60,-1,1,0,0,1,1)
        print("x"..game.loot.qty, 48, 62)
        printc(game.loot.item.name, 50, 72)
@@ -649,6 +656,7 @@ end
 function onOutDoorEnter()
   game.monster = nil
   game.loot = nil
+  game.gold = nil
   game.door = false
   damage(pg,-1)
 end
@@ -666,27 +674,45 @@ function doEnemyTurn()
  if isEffectActive(EFFECTS.SMOKE) then
   log:add({5,game.monster.name,15," can't find you becouse of ",
  9,EFFECTS.SMOKE.name })
- else
- local dmg = rnd(game.monster.attack)
- local blocked = dmg * pg.armour // 100
- local realdmg = math.max(0, dmg - blocked)
- damage(pg, realdmg)
- log:add({5,game.monster.name,15," deals ",
- 6,dmg,
- 12, " (-"..blocked..")",
- 15," damages to you!"
- })
- sfx(1,15,15)
-
- anims:add(makeAnimRaisingString("-"..realdmg, 205, 50,6,function(self)
-   if pg.hp <= 0 then
-        log:add({5,game.monster.name,15," defeats you!"})
-        enterStep(STEP.OUTDOOR)
-   else
-     enterStep(STEP.OURTURN)
-   end
-  end));
+  return
  end
+ 
+ if isEffectActive(EFFECTS.GHOSTLY) then
+  if math.random(1,100)>50 then
+    log:add({5,game.monster.name,15," misses you becouse of ", 9,EFFECTS.GHOSTLY.name })
+    return
+  end
+ end
+ 
+ 
+	 local dmg = rnd(game.monster.attack)
+	 local blockedFloat = dmg * pg.armour / 100
+	 local blocked = math.floor(blockedFloat)
+	 local blockedRemainder = blockedFloat - blocked
+	 pg.blockedRemainder = pg.blockedRemainder + blockedRemainder
+	 trace(pg.blockedRemainder)
+	 if pg.blockedRemainder > 1 then
+	   pg.blockedRemainder = pg.blockedRemainder -1
+	   blocked = blocked +1
+	 end
+	 local realdmg = math.max(0, dmg - blocked)
+	 damage(pg, realdmg)
+	 log:add({5,game.monster.name,15," deals ",
+	 6,dmg,
+	 12, " (-"..blocked..")",
+	 15," damages to you!"
+	 })
+	 sfx(1,15,15)
+
+	 anims:add(makeAnimRaisingString("-"..realdmg, 205, 50,6,function(self)
+	   if pg.hp <= 0 then
+			log:add({5,game.monster.name,15," defeats you!"})
+			enterStep(STEP.OUTDOOR)
+	   else
+		 enterStep(STEP.OURTURN)
+	   end
+	  end));
+ 
 end
 
 function calcLoot(l)
@@ -718,6 +744,7 @@ function killMonster()
   qty = q,
   item = l.item
  }
+ game.gold = rnd(game.monster.gold)
  game.monster = nil
 end
 
@@ -744,6 +771,7 @@ function lootActions()
  { label = "Pick Up Loot", callback = function()
     log:add({15, "You pick up ",9,game.loot.qty.."x ", 14, game.loot.item.name })
     inventoryAdd(game.loot.item, game.loot.qty)
+	inventoryAdd(ITEMS.Gold, game.gold)
     enterStep(STEP.OUTDOOR)
  end },
  { label = "Leave it", callback = function() 
@@ -987,7 +1015,7 @@ ITEMS = {
   equip={
     place= LEGS,
   },
-  armour=1  
+  armour=5
  },
  Shirt={
   name="Shirt",
@@ -996,7 +1024,7 @@ ITEMS = {
   equip={
     place= BODY,
   },
-  armour=2  
+  armour=8  
  },
  Shield={
   name="Shield",
@@ -1017,6 +1045,15 @@ ITEMS = {
  Helm={
   name="Helm",
   spr=309,
+  equip={
+    place= HEAD,
+  },
+  armour=15
+  
+ },
+ Cap={
+  name="Cap",
+  spr=301,
   equip={
     place= HEAD,
   },
@@ -1105,6 +1142,34 @@ ITEMS = {
    end
   }
  },
+ Weakens={
+  name="Weakens",
+  spr=299,
+  flavour={"Halve monster","strength."},
+  combat={
+    name= "Throw",
+   onUse=function(item)
+     log:add({15, "You throw ",14, item.name, 15, "! Monster weakened!"})
+	  anims:add(makeAnimRaisingString("Halved!", 50, 50,11))
+	  game.monster.attack.min = game.monster.attack.min // 2
+	  game.monster.attack.max = game.monster.attack.max // 2
+	  inventoryAdd(item, -1)
+   end
+  }
+ },
+ EctoDrink={
+  name="EctoDrink",
+  spr=300,
+  flavour={"Makes you ghostly."},
+  combat={
+    name= "Drink",
+   onUse=function(item)
+     log:add({15, "You drink ",14, item.name, 15, "! Tastes funny!"})
+	  addEffect(EFFECTS.GHOSTLY)	  
+	  inventoryAdd(item, -1)
+   end
+  }
+ },
  MediumPotion={
   name="Potion, Medium",
   spr=310,
@@ -1135,6 +1200,11 @@ EFFECTS = {
 		name = "SMOKE",
 		turns = 4
 	},
+	GHOSTLY = {
+		spr = 271,
+		name = "GHOSTLY",
+		turns = 8
+	},
 	MUSCLES = {
 		spr = 268,
 		name = "MUSCLES",
@@ -1156,6 +1226,14 @@ CRAFTS = {
 		output = ITEMS.MediumPotion
 	},
 	{
+		ingredients = { [ITEMS.Venom]=5},
+		output = ITEMS.Weakens
+	},
+	{
+		ingredients = { [ITEMS.Ectoplasm]=5, [ITEMS.MintLeaf]=1  },
+		output = ITEMS.EctoDrink
+	},
+	{
 		ingredients = { [ITEMS.Gold]=10, [ITEMS.Bone]=12},
 		output = ITEMS.Key
 	},
@@ -1165,87 +1243,94 @@ CRAFTS = {
 	},
 	{
 		ingredients = { [ITEMS.Leather]=2},
-		output = ITEMS.Helm
+		output = ITEMS.Cap
 	}
 	
 }
 
 function defMon(name, sprite, hp, 
-   attack, levels, loot)
+   attack, levels, gold, loot)
 return  {
    name = name,
    spr = sprite,
    maxHpRange = hp,
    attack = attack,
    loot = loot,
-			levels = levels
+   levels = levels,
+   gold = gold
  }
 end
 
 MONSTERS = {
  defMon("MOUSE",324,range(5,8),range(1,3),
-	range(0,20),
+	range(0,20), range(1,2),
  {
   { prob=5, item=ITEMS.Cheese, qty=range(1,2) },
   { prob=2, item=ITEMS.Blood, qty=range(2,3) },
  }),
  defMon("SNAKE",388,range(6,10),range(2,3),
-	range(0,15),
+	range(0,15), range(2,3),
  {
   { prob=5, item=ITEMS.Leather, qty=range(1,2) },
   { prob=2, item=ITEMS.Blood, qty=range(2,3) },
   { prob=2, item=ITEMS.Venom, qty=range(2,3) },
  }),
- defMon("SLUG", 384, range(13,16), range(0,3),
-	range(0,20),
- {
-  { prob=5, item=ITEMS.MediumPotion, qty=1 },
-  { prob=5, item=ITEMS.Blood, qty=range(3,6) },
- }),
  defMon("KOBOLD",328,range(8,14),range(1,5),
-	range(0,20),
+	range(0,20), range(4,5),
  {
   { prob=3, item=ITEMS.Pants, qty=1 },
   { prob=3, item=ITEMS.Tomato, qty=range(1,2) },
   { prob=3, item=ITEMS.MintLeaf, qty=range(2,4) },
  }),
  defMon("SKELETON",396,range(9,13),range(3,4),
-	range(0,20),
+	range(0,20), range(3,6),
  {
   { prob=3, item=ITEMS.Bone, qty=1 },
   { prob=3, item=ITEMS.Shirt, qty=1 },
-  { prob=3, item=ITEMS.Gold, qty=range(4,6) },
  }),
- defMon("GOLEM",76,range(50,60),range(15,20),
-	range(40,1000),
+ defMon("SLUG", 384, range(13,16), range(0,3),
+	range(10,30), range(1,2),
  {
-  { prob=3, item=ITEMS.Rock, qty=range(5,8) },
+  { prob=5, item=ITEMS.MediumPotion, qty=1 },
+  { prob=5, item=ITEMS.Blood, qty=range(3,6) },
  }),
- defMon("GHOST",452,range(15,20),range(2,5),
-	range(6,1000),
+ defMon("HELLFLY",456,range(8,12),range(3,10),
+	range(20,40), range(4,6),
  {
-  { prob=5, item=ITEMS.Ectoplasm, qty=range(2,6) },
+  { prob=3, item=ITEMS.Venom, qty=range(3,4) },
+  { prob=3, item=ITEMS.Shirt, qty=1 },
  }),
  defMon("SKULL",332,range(25,30),range(1,10),
-	range(15,30),
+	range(15,30), range(4,7),
  {
   { prob=1, item=ITEMS.Helm, qty=1 },
   { prob=5, item=ITEMS.Gold, qty=range(10,20) },
  }),
+ 
+ defMon("GOLEM",76,range(50,60),range(15,20),
+	range(40,1000), range(10,20),
+ {
+  { prob=3, item=ITEMS.Rock, qty=range(5,8) },
+ }),
+ defMon("GHOST",452,range(15,20),range(2,5),
+	range(6,1000), range(1,2),
+ {
+  { prob=5, item=ITEMS.Ectoplasm, qty=range(2,6) },
+ }),
  defMon("SUCCUBUS",448,range(40,50),range(8, 12),
-	range(30,1000),
+	range(30,1000), range(10,12),
  {
   { prob=1, item=ITEMS.Helm, qty=1 },
   { prob=5, item=ITEMS.Gold, qty=range(10,20) },
  }),
  defMon("DRAGON",392,range(100, 150),range(50, 150),
-	range(40,1000),
+	range(40,1000), range(30,50),
  {
   { prob=1, item=ITEMS.Helm, qty=1 },
   { prob=5, item=ITEMS.Gold, qty=range(10,20) },
  }),
  defMon("ENT",460,range(30, 150),range(10,20),
-	range(25,40),
+	range(25,40), range(20,22),
  {
   { prob=1, item=ITEMS.Helm, qty=1 },
   { prob=5, item=ITEMS.Gold, qty=range(10,20) },
@@ -1273,6 +1358,10 @@ STEP = {
 pg.inventory = {
  [ITEMS.SmallPotion] = 3,
  [ITEMS.Key] = 50,
+ [ITEMS.Pants] = 2,
+ [ITEMS.Venom] = 6,
+ [ITEMS.MintLeaf] = 6,
+ [ITEMS.Ectoplasm] = 6,
  [ITEMS.Cheese] = 1, 
 }
 
@@ -1455,6 +1544,7 @@ sync(4,0,true)
 -- 012:6666666666666006666660066006660600006006000000666600066666666666
 -- 013:b0b0b0b0b0b0b0b00bb0b0bb0b0bbb0bbb0bbb0bbb0b0b0bb0bb0bb0b0bb0bb0
 -- 014:aaaaaaaaa0aa00aaa0a0000aaaa0000aa000000a0000aaaaa00aa00aaaaa00aa
+-- 015:bbb00bbbbb0000bbb000000bb0b0b00bb0b0b00bb000000bb000000bb0b0bb0b
 -- 016:0000000000eeee000eeeeee00eeeeee00eeeeee000eeee00000ee0000eeeeee0
 -- 017:0000000000eee00000000e00eeeeeee0000eeeeeeeeeeeee000eeee00eeee000
 -- 018:00000000000eee0000e000000eeeeeeeeeeee000eeeeeeee0eeee000000eeee0
@@ -1474,6 +1564,9 @@ sync(4,0,true)
 -- 040:00000000000b0b000666b6606cc666666c666666666666660666666600666660
 -- 041:0004400000444400444144440414414000444400004444000044440004400440
 -- 042:0005500000bb55000bbbb5500b0b05500b0b0b500bbbbb500bbbbb500b0b0050
+-- 043:004444000034430000300300003bb30003bbbb3003bbbb3003bbbb3000333300
+-- 044:0044440000344300003003000035530003555530035555300355553000333300
+-- 045:0004400003344440034444443444444434444444700000040000000000000000
 -- 048:f0000000df0000000dd0000000dd0000000dd0d00000dd0000000d400000d044
 -- 049:0aaaaaa00a2662a00a2662a00a2662a00a2662a000a66a0000a66a00000aa000
 -- 050:0000000000000000effffefefffefffffeffffeafffafffa0ef00fa000000000
