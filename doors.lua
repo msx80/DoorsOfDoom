@@ -32,6 +32,21 @@ due o tre oggetti comprabili per negozio
 
 t=0
 
+function deepcopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[deepcopy(orig_key)] = deepcopy(orig_value)
+        end
+        setmetatable(copy, deepcopy(getmetatable(orig)))
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end
+
 function multiset(cont, item, qty)
  if qty > 0 then
   cont[item]=qty
@@ -281,7 +296,14 @@ function drawInvBackground(item,x,y)
    end
 
 end
-
+function refreshCommandWidget()
+ local oldCurrent = widget.current
+ local oldScroll = widget.scroll
+ makeCommandWidget(currentStep.actions())
+ widget.current = oldCurrent
+ widget.scroll = oldScroll
+ widget:ensureOk()
+end
 function refreshInvWidget()
  if invWidget then
   local oldCurrent = invWidget.current
@@ -307,7 +329,7 @@ function makeInventoryWidget()
 		if k.usable then
 		  k.usable.onUse(k)
 				sfx(4,40,15)
-		  makeCommandWidget(currentStep.actions())
+		  refreshCommandWidget()
 		elseif k.equip then
 		  if isEquipped(k) then
 		    unequip(k.equip.place) 
@@ -336,8 +358,8 @@ function makeCraftWidget()
    
  }
  for i=1,#CRAFTS do
-	 if canCraft(CRAFTS[i]) then
-  local s = {-1, CRAFTS[i].output.spr, 15, " = "}
+  if canCraft(CRAFTS[i]) then
+   local s = {-1, CRAFTS[i].output.spr, 15, " <= "}
 
   for k,v in pairs(CRAFTS[i].ingredients) do
     table.insert(s, -1)
@@ -644,7 +666,7 @@ function onOpenDoorEnter()
   -- choose monster and stuff
   log:add({15,"-----------------------"})
   game.door = true
-  game.monster = chooseMonster()
+  game.monster = deepcopy(chooseMonster())
   game.monster.maxHp = rnd(game.monster.maxHpRange)
   game.monster.hp = game.monster.maxHp
   game.level=game.level+1
@@ -814,7 +836,7 @@ function outDoorActions()
   callback=function() 
      k.usable.onUse(k) 
 					sfx(4,40,15)
-   	 makeCommandWidget(currentStep.actions())
+   	 refreshCommandWidget()
   end
   })
     end
@@ -889,7 +911,7 @@ function ourTurnActions(action)
          k.combat.onUse(k)
 									sfx(5,40,30)
 
-	     makeCommandWidget(currentStep.actions())
+	     refreshCommandWidget()
        end
       })
     end
@@ -904,7 +926,7 @@ function doCraft(c)
  end
  inventoryAdd(c.output, 1)
  log:add({15, "You obtain ", 10, c.output.name})
- makeCommandWidget(currentStep.actions())
+ refreshCommandWidget()
 	sfx(3,40,15)
 end
 
@@ -1003,6 +1025,11 @@ ITEMS = {
   spr=266,
 --  flavour={"It's always good","to bring some","around."},
  },
+ Phlogiston={
+  name="Phlogiston",
+  spr=301,
+  flavour={"The heart","of fire."},
+ },
  Key={
   name="Key",
   flavour={"They open doors"},
@@ -1034,6 +1061,14 @@ ITEMS = {
   },
   armour=40
  },
+ Buckler={
+  name="Buckler",
+  spr=308,
+  equip={
+    place= RIGHT,
+  },
+  armour=20
+ },
  Armour={
   name="Plate Armour",
   spr=289,
@@ -1058,6 +1093,24 @@ ITEMS = {
     place= HEAD,
   },
   armour=10
+  
+ },
+ Throusers={
+  name="Throusers",
+  spr=290,
+  equip={
+    place= LEGS,
+  },
+  armour=12
+  
+ },
+ Jacket={
+  name="Jacket",
+  spr=291,
+  equip={
+    place= BODY,
+  },
+  armour=15
   
  },
  Mace={
@@ -1226,7 +1279,7 @@ CRAFTS = {
 		output = ITEMS.MediumPotion
 	},
 	{
-		ingredients = { [ITEMS.Venom]=5},
+		ingredients = { [ITEMS.Venom]=4},
 		output = ITEMS.Weakens
 	},
 	{
@@ -1244,6 +1297,23 @@ CRAFTS = {
 	{
 		ingredients = { [ITEMS.Leather]=2},
 		output = ITEMS.Cap
+	},
+	{
+		ingredients = { [ITEMS.Leather]=3, [ITEMS.Pants]=1},
+		output = ITEMS.Throusers
+	},
+	{
+		ingredients = { [ITEMS.Leather]=4, [ITEMS.Shirt]=1},
+		output = ITEMS.Jacket
+	},
+	{
+		ingredients = { [ITEMS.Pants]=3, [ITEMS.Shirt]=3},
+		output = ITEMS.Gold,
+		qty=15
+	},
+	{
+		ingredients = { [ITEMS.Gold]=15},
+		output = ITEMS.Key
 	}
 	
 }
@@ -1298,7 +1368,13 @@ MONSTERS = {
 	range(20,40), range(4,6),
  {
   { prob=3, item=ITEMS.Venom, qty=range(3,4) },
-  { prob=3, item=ITEMS.Shirt, qty=1 },
+  { prob=3, item=ITEMS.Blood, qty=range(2,4) },
+ }),
+ defMon("OGRE",320,range(25,30),range(6,8),
+	range(25,60), range(7,9),
+ {
+  { prob=5, item=ITEMS.Buckler, qty=1 },
+  { prob=3, item=ITEMS.Leather, qty=range(2,4) },
  }),
  defMon("SKULL",332,range(25,30),range(1,10),
 	range(15,30), range(4,7),
@@ -1306,7 +1382,6 @@ MONSTERS = {
   { prob=1, item=ITEMS.Helm, qty=1 },
   { prob=5, item=ITEMS.Gold, qty=range(10,20) },
  }),
- 
  defMon("GOLEM",76,range(50,60),range(15,20),
 	range(40,1000), range(10,20),
  {
@@ -1358,11 +1433,9 @@ STEP = {
 pg.inventory = {
  [ITEMS.SmallPotion] = 3,
  [ITEMS.Key] = 50,
- [ITEMS.Pants] = 2,
- [ITEMS.Venom] = 6,
- [ITEMS.MintLeaf] = 6,
- [ITEMS.Ectoplasm] = 6,
- [ITEMS.Cheese] = 1, 
+ [ITEMS.Blood] = 50,
+  [ITEMS.Shirt] = 50,
+   [ITEMS.Pants] = 50,
 }
 
 enterStep(STEP.OUTDOOR)
@@ -1567,6 +1640,7 @@ sync(4,0,true)
 -- 043:004444000034430000300300003bb30003bbbb3003bbbb3003bbbb3000333300
 -- 044:0044440000344300003003000035530003555530035555300355553000333300
 -- 045:0004400003344440034444443444444434444444700000040000000000000000
+-- 046:060060000600606000066060066696660669e966066efe66066efe6000666660
 -- 048:f0000000df0000000dd0000000dd0000000dd0d00000dd0000000d400000d044
 -- 049:0aaaaaa00a2662a00a2662a00a2662a00a2662a000a66a0000a66a00000aa000
 -- 050:0000000000000000effffefefffefffffeffffeafffafffa0ef00fa000000000
