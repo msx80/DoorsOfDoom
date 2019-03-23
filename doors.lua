@@ -396,10 +396,10 @@ function makeCommandWidget(items)
 end
 
 
- -- dati del giocatore
- pg={
+function resetPg()
+return {
   maxHp = 20,
-  hp=20,
+  hp=2,
   inventory={
   },
   equip={ -- map PLACE, ITEM
@@ -411,6 +411,10 @@ end
   armour = 0,
   
  }
+end
+
+ -- dati del giocatore
+ pg=resetPg()
 
 
 game={
@@ -681,13 +685,29 @@ function onOpenDoorEnter()
   inventoryAdd(ITEMS.Key, -1)  
 end
 
-
-function onOutDoorEnter()
+function resetDoor()
   game.monster = nil
   game.loot = nil
   game.gold = nil
   game.door = false
+end
+
+function onOutDoorEnter()
+  resetDoor();
   damage(pg,-1)
+end
+
+function deadEnter()
+  --resetDoor();
+		sfx(7,30,200)
+  anims:add({
+    draw=function(self)
+   big("** DEAD **", 115, 50-(self.time//10), 6)
+    end,
+    onEnd=nil,
+    ttl = 180
+   });
+  --anims:add(makeAnimRaisingString("** DEAD *", 105, 50,6,nil));
 end
 
 function damage(ent, val)
@@ -733,15 +753,19 @@ function doEnemyTurn()
 	 })
 	 sfx(1,15,15)
 
-	 anims:add(makeAnimRaisingString("-"..realdmg, 205, 50,6,function(self)
-	   if pg.hp <= 0 then
-			log:add({5,game.monster.name,15," defeats you!"})
-			enterStep(STEP.OUTDOOR)
-	   else
-		 enterStep(STEP.OURTURN)
-	   end
-	  end));
+	 anims:add(makeAnimRaisingString("-"..realdmg, 205, 50,6,afterEnemyAction));
  
+end
+
+function afterEnemyAction(self)
+   if pg.hp <= 0 then
+		log:add({5,game.monster.name,15," defeats you! ", 6, "YOU'RE DEAD!"})
+		log:add({15,"You survived ", 9, game.level, 15, " levels!"})
+		
+		enterStep(STEP.DEAD)
+   else
+	 enterStep(STEP.OURTURN)
+   end
 end
 
 function calcLoot(l)
@@ -939,6 +963,26 @@ function ourTurnActions(action)
     end
   end
 
+  return r
+end
+
+function startNewGame()
+ resetDoor()
+ resetPg()
+ game.effects={}
+ game.level=0
+ pg.inventory = {
+  [ITEMS.SmallPotion] = 3,
+  [ITEMS.Key] = 50,
+}
+enterStep(STEP.OUTDOOR)
+end
+
+function deadActions(action)
+  local r = {
+   { label = "Try again", callback = startNewGame },
+  }
+  
   return r
 end
 
@@ -1195,7 +1239,7 @@ ITEMS = {
  },
  Fork={
   name="Fork",
-  spr=307,
+  spr=281,
   flavour={"Use the fork, luke."},
   equip={
     place= LEFT,
@@ -1274,7 +1318,7 @@ ITEMS = {
  },
  Rejuvenant={
   name="Rejuvenant",
-  spr=300,
+  spr=282,
   flavour={"Keep healing", "for some turns"},
   usable={
     name= "Drink",
@@ -1469,9 +1513,9 @@ MONSTERS = {
  defMon("EVIL COOK",396,range(25,35),range(5,8),
 	range(20,60), range(5,8),
  {
-  { prob=3, item=ITEMS.Bread, qty=range(2,3) },
-  { prob=5, item=ITEMS.Tomato, qty=range(2,3) },
-  { prob=5, item=ITEMS.Cheese, qty=range(2,3) },
+  { prob=6, item=ITEMS.Bread, qty=range(2,3) },
+  { prob=4, item=ITEMS.Tomato, qty=range(2,3) },
+  { prob=2, item=ITEMS.Cheese, qty=range(2,3) },
   { prob=5, item=ITEMS.Fork, qty=range(2,3) },
  }),
  defMon("SPIDER",388,range(18,25),range(8,12),
@@ -1522,6 +1566,10 @@ STEP = {
   },
   OURTURN={
     actions=ourTurnActions
+  },
+  DEAD={
+	enter=deadEnter,
+    actions=deadActions
   },
   LOOT={
     actions=lootActions
@@ -1772,6 +1820,8 @@ end
 -- 022:0000377300033773033377733777773377777330777773007773330033330000
 -- 023:0000000000000000000110000011110000111100000110000000000000000000
 -- 024:0044444004999994049999940049994004999994049999940499999404444444
+-- 025:0f0a0a000f0a0a000a0a0a0000aaa000000a0000000a0000000a0000000a0000
+-- 026:0044440000344300003003000035e30003555530035e553003555e3000333300
 -- 028:5555555555500555555005555000000550000005555005555550055555555555
 -- 032:0003330000737370000333000000400000004000000040000000400000004000
 -- 033:000000000aa00330a3333333a037730300333300003773000033330000377300
@@ -2040,6 +2090,7 @@ end
 -- 004:00000080009000c000d000e000e000d000900020001000b000c000c000b0009000400030000000000000009000b000a0005000c000c0009000500000310000000000
 -- 005:0050006000600070008000800080009000900080008000800070007000600040003000300030004000600070009000a000a000b000c000d000e000e0300000000000
 -- 006:0440045004600460047004700480048004800480048004a004a004900490048004700460046004400430043004000420042004300430043004200420130000000000
+-- 007:00d000d000d000d000d000c000c000b000b000a000900080007000700070007000700070008000800080008000800080008000200030002000300020250000000000
 -- </SFX>
 
 -- <PALETTE>
