@@ -2,6 +2,7 @@
 -- author: msx80
 -- desc:   Open doors and fight monsters!
 -- script: lua
+-- saveid: DoorsOfDoom
 
 local LEFT = 1
 local RIGHT = 2
@@ -11,24 +12,6 @@ local LEGS = 5
 local places = {"Left hand", "Right hand", "Head", "Body", "Legs"}
 local placeOffsets={ {2, 18}, {30,18}, {16,2},{16,16}, {16,30} }
 local defaultEquip = {257,258,256, 259,260}
-
-
---[[
-
-
-Idee:
-Craft Table:
-mostra le combinazioni che hai:
-"You can't craft now"
-"Craft 2 tails and 2 leaves"
-"Craft 5 diamonds"
-
-Quando le fa, ti dice cosa hai ottenuto
-
-Negozi:
-due o tre oggetti comprabili per negozio
-
-]]
 
 t=0
 
@@ -148,10 +131,10 @@ anims = {
 log = {
   lines = {
     {0,""}, 
+    {15,"Welcome to",6," Doors of Doom",15,"!  by", 8, " MSX"}, 
+    {14,"Fight your way deep into the dungeon!"},
     {0,""}, 
-    {0,""}, 
-    {15,"Welcome to",6," Doors of Doom",15,"!"}, 
-    {14,"Fight your way deep into the dungeon"}
+    {15,"High score: ", 5, pmem(0)}, 
   },
   add = function (self, lin)
     table.remove(self.lines, 1)
@@ -703,6 +686,7 @@ function deadEnter()
   log:add({15,"You survived ", 9, game.level, 15, " levels and killed ", 6, game.kills,15, "!"})
   local score = game.level*game.kills
 		log:add({15,"TOTAL SCORE: ", 5, score})
+		
 		sfx(7,30,200)
   anims:add({
     draw=function(self)
@@ -711,7 +695,13 @@ function deadEnter()
     onEnd=nil,
     ttl = 180
    });
-  --anims:add(makeAnimRaisingString("** DEAD *", 105, 50,6,nil));
+		if score>pmem(0) then
+		 pmem(0, score)
+ 		log:add({9,"  ** YOU MADE A NEW RECORD!! **"})
+   anims:add(makeAnimRaisingString("NEW RECORD !!", 105, 50,5,nil))
+			
+		end 
+
 end
 
 function damage(ent, val)
