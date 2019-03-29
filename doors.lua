@@ -4,13 +4,24 @@
 -- script: lua
 -- saveid: DoorsOfDoom
 
---[[
+-- contact: msx on Discord or 
+-- msx80 on Twitter
 
- TODO:
- rejuvenant
- smokebomb
-]]
+-- Man this is the last time i do
+-- this kind of stuff.. So much 
+-- work to balance everything and
+-- stuff!
 
+-- PLEASE: don't reupload this game 
+-- with minor changes (or major)
+-- Rights are granted to study and
+-- take inspiration from the sources
+-- but please don't copy :)
+
+-- Wanna contribute some music?
+-- contact me!
+
+-- 29/03/2019 first release
 
 local LEFT = 1
 local RIGHT = 2
@@ -551,7 +562,7 @@ function printStats(x, y)
 -- print("Exper.",x,y+18,13, true, 1, true)
 -- printSmallRight("boh",x+63,y+18,13)
  local nk = inventoryGet(ITEMS.Key)
-	if nk>5 or ((t//15)%2==0) then
+	if nk>10 or ((t//15)%2==0) then
  print("Keys",x,y+18,9, true, 1, true)
  printSmallRight(nk,x+63,y+18,9)
  end
@@ -668,6 +679,7 @@ for i=1,#MONSTERS do
  end
 end
 return eligibles[math.random(1,#eligibles)]
+--return MONSTERS[22]
 end
 
 function onOpenDoorEnter()
@@ -704,7 +716,7 @@ end
 function deadEnter()
   --resetDoor();
   log:add({15,"You survived ", 9, game.level, 15, " levels and killed ", 6, game.kills,15, "!"})
-  local score = game.level*game.kills+(inventoryGet(ITEMS.Diamond)*100)
+  local score = game.level*game.kills+(inventoryGet(ITEMS.Diamond)*100)+(inventoryGet(ITEMS.Crown)*5000)
 		log:add({15,"TOTAL SCORE: ", 5, score})
 		
 		sfx(7,30,200)
@@ -717,7 +729,7 @@ function deadEnter()
    });
 	if score>pmem(0) then
 		 pmem(0, score)
- 		log:add({9,"       ** YOU MADE A NEW RECORD!! **"})
+ 		log:add({9,"         ** YOU MADE A NEW RECORD!! **"})
 		
 	anims:add({
     draw=function(self)
@@ -1130,10 +1142,14 @@ ITEMS = {
  Scroll={
   name="Scroll",
   spr=325,
-  flavour={"Suck all life from","an enemy and gives","it to you."},
+  flavour={"Suck all life from","an enemy and gives","it to you.", "(except demons)"},
   combat={
     name= "Recite",
     onUse=function(item)
+	   if game.monster.name == "DEVIL" then
+	     log:add({15, "Can't use on demons!"})
+		 log:add({15, "Do you even read descriptions?"})
+	   else
 	   local dmg = game.monster.hp
     damage(pg, -dmg)
     anims:add(makeAnimRaisingString("+"..dmg, 205, 50,6))
@@ -1142,6 +1158,7 @@ ITEMS = {
 	   log:add({15, "You leech ",5, dmg, 15, " hp from ",6,game.monster.name,15," !"})
 
 	   inventoryAdd(item, -1)
+	   end
  end
   }
  },
@@ -1220,7 +1237,7 @@ ITEMS = {
  },
  Key={
   name="Key",
-  flavour={"They open doors."},
+  flavour={"They open doors.", "Be careful not", "to finish them."},
   spr=319
  },
  Pants={
@@ -1243,6 +1260,7 @@ ITEMS = {
  },
  Shield={
   name="Shield",
+  flavour={"Heavy metal!"},
   spr=305,
   equip={
     place= RIGHT,
@@ -1252,6 +1270,7 @@ ITEMS = {
  Buckler={
   name="Buckler",
   spr=308,
+  flavour={"The bottom of", "a beer barrel."},
   equip={
     place= RIGHT,
   },
@@ -1324,6 +1343,19 @@ ITEMS = {
   spr=313,
   flavour={"Always kill with", "a fresh breath"}
  },
+ Mint={
+  name="Mint",
+  spr=322,
+  flavour={"Killer fresh", "breath!", "", "Halven monster HP"},
+  combat={
+	name= "chew",
+    onUse=function(item) 
+	  damageMonster(game.monster.hp // 2, function() end)	  
+	  log:add({15, "You chew ",14, item.name, 15, " and then blow freezing air!"})
+	  inventoryAdd(item, -1)
+	end  
+  }
+ },
  Leather={
   name="Leather",
   spr=297,
@@ -1385,6 +1417,15 @@ ITEMS = {
   },
   attack=range(10,15)
  },
+ FlamingSword={
+  name="Flaming Sword",
+  spr=320,
+  flavour={"The badassery", "made sword."},
+  equip={
+    place= LEFT,
+  },
+  attack=range(15,20)
+ },
  Bone={
   name="Bone",
   spr=318,
@@ -1416,6 +1457,11 @@ ITEMS = {
   name="Diamond",
   spr=303,
   flavour={"So so precious.", "", "100 Points each", "at the end of the","game."},
+ },
+ Crown={
+  name="Crown",
+  spr=321,
+  flavour={"The Crown was only", "heard of in the", "wildest legends.", "", "5000 Points each", "at the end of the","game."},
  },
  SmallPotion={
   name="Potion, Small",
@@ -1548,6 +1594,10 @@ CRAFTS = {
 		output = ITEMS.EctoDrink
 	},
 	{
+		ingredients = { [ITEMS.MintLeaf]=8  },
+		output = ITEMS.Mint
+	},
+	{
 		ingredients = { [ITEMS.Gold]=10, [ITEMS.Bone]=12},
 		output = ITEMS.Key
 	},
@@ -1590,6 +1640,10 @@ CRAFTS = {
 	{
 		ingredients = { [ITEMS.Stick]=2, [ITEMS.Pants]=1},
 		output = ITEMS.Slingshot
+	},
+	{
+		ingredients = { [ITEMS.Phlogiston]=15, [ITEMS.Sword]=1 },
+		output = ITEMS.FlamingSword
 	}
 	
 }
@@ -1738,13 +1792,13 @@ defMon("OGRE",-15,range(25,30),range(6,8),
  defMon("DEMON",-19,range(50, 100),range(50, 150),
 	range(60,1000), range(30,50),
  {
-  { prob=10, item=ITEMS.Key, qty=10 },
-  { prob=1, item=ITEMS.Diamond, qty=1 },
+  { prob=3, item=ITEMS.Key, qty=range(2,3) },
+  { prob=1, item=ITEMS.Diamond, qty=1 }  
  }),
  defMon("DEVIL",-24,range(200, 200),range(20, 300),
 	range(65,1000), range(30,50),
  {
-  { prob=1, item=ITEMS.Diamond, qty=1 }
+  { prob=1, item=ITEMS.Crown, qty=1 },
  }),
  defMon("ENT",-20,range(30, 150),range(10,20),
 	range(35,55), range(20,22),
@@ -1786,9 +1840,11 @@ STEP = {
 pg.inventory = {
  [ITEMS.SmallPotion] = 3,
  [ITEMS.Key] = 50,
-
+ 
+ 
 --[[ 
-[ITEMS.Venom] = 50,
+
+ [ITEMS.Venom] = 50,
  [ITEMS.Ectoplasm] = 50,
  [ITEMS.Phlogiston] = 50,
  [ITEMS.MintLeaf] = 50,
@@ -1940,34 +1996,18 @@ end
 -- 061:0000011400000011000000010000000000000000000000000000000000000000
 -- 062:3314444413334444144314441143344401143144001434440014334400114414
 -- 063:4449444444494444444444444444444444444444444444444444444444444444
--- 064:0000060000000660000006060000006000000006000000000000000000000000
--- 065:0066666666666666666666666666666666666666666ff66666666ff666666b66
--- 066:600000066660066666666606666666606666660066ff6600ff6666006b666606
--- 067:0000000000000000000000000000000000000000000000000000000066666000
 -- 068:4444444444444444444444444444444444444444444444444444444444444424
 -- 069:4444100014441000144110001441000014410000141100001410000014100000
 -- 078:0001444400014441000114410000144100001441000011410000014100000141
 -- 079:4444444444444444444444442444444444444444444444444444444444444444
--- 080:0006660006666660066666660666666666666666666666666666666606666666
--- 081:66666b6666666666006666666000666666000066666660006666666666666666
--- 082:6b66660666666606666660066660006666006666000666666666666666666606
--- 083:66666600666666006666660066666600666666006666660066666a006666aaa0
 -- 084:4444442444444441444444414444441144444414444444444444444444444444
 -- 085:1410000044100000411000004100000041000000100000001000000010000000
 -- 094:0000014100000144000001140000001400000014000000140000001400000011
 -- 095:4244444414244444144444441124444441244444414444444414444434144444
--- 096:06666660066666600066666000666646006666440006666600006666000aa666
--- 097:6666666666666666006644666666666a46666aaa64aaaa666aa6644464666666
--- 098:66666606666666aa66aaaaaaaaaaa006aa666666666666004466660066666600
--- 099:aaaaaaa0aaaaaaa0aa0000a06000000000000000000000000000000000000000
 -- 100:4444444444441444444414414444444144444441443333414344444143444441
 -- 101:1000000010000000100000000000000000000000000000000000000010000000
 -- 110:0000000100000001000000010000000100000001000000010000000100000001
 -- 111:4414444442114444434144444341444443414444444444444441444444314444
--- 112:000aa06600000000000006660000666600006666000067660000776700007667
--- 113:6466666606666666666666666666666666666666666666666666666666666666
--- 114:6666600066666666666666666666666666666666066666660666666606666666
--- 115:0000000066600000666600006666000066660000767700007667700067667000
 -- 116:4344444443444444333313344444344444443444444434444444344433333344
 -- 117:1000000010000000100000001000000010000000100000001000000010000000
 -- 126:0000000100000001000000010000000100000001000000010000000100000001
@@ -2071,6 +2111,9 @@ end
 -- 061:00000000099000009999900099999990eee999999e9eeeee0eeee9e900e9eee0
 -- 062:00ff0000ffff0000fff0000000ff0000000ff0000000ffff00000fff00000ff0
 -- 063:000000000e000000e0900000909999ff90900909090000090000000000000000
+-- 064:f96606006f960000066900000066000000066060000066000000064000006044
+-- 065:0000000060600606909009099999999999566599099999900999999000999900
+-- 066:0000fff0000f55ff00f5ffff0ffffffffffffff0ffffff00fffff0000fff0000
 -- 068:005bb00000bbb0005b0b0bb0bbb5bbb0bb0b0bb000bbb50000bbb05000000050
 -- 069:0444444000eeee4000e99e0000eeee00009e990000eeee0004e9e90004444440
 -- 070:0000000000777766077777667700000077000000077777660077776600000000
