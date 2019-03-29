@@ -393,7 +393,7 @@ end
 function resetPg()
 return {
   maxHp = 20,
-  hp=1,
+  hp=20,
   inventory={
   },
   equip={ -- map PLACE, ITEM
@@ -1638,12 +1638,6 @@ MONSTERS = {
   { prob=5, item=ITEMS.MediumPotion, qty=1 },
   { prob=5, item=ITEMS.Blood, qty=range(3,6) },
  }),
- defMon("HELLFLY",-22,range(8,12),range(3,10),
-	range(20,40), range(4,6),
- {
-  { prob=3, item=ITEMS.Venom, qty=range(3,4) },
-  { prob=3, item=ITEMS.Blood, qty=range(2,4) },
- }),
  defMon("OGRE",-15,range(25,30),range(6,8),
 	range(25,60), range(7,9),
  {
@@ -1651,13 +1645,20 @@ MONSTERS = {
   { prob=3, item=ITEMS.Leather, qty=range(2,4) },
  }),
  defMon("MYCONID",-10,range(1,1),range(1,1),
-	range(15,40), range(3,6),
+	range(13,40), range(3,6),
  {
   { prob=3, item=ITEMS.Clover, qty=range(1,2) },
   { prob=1, item=ITEMS.Spinach, qty=1 },
  }),
+ defMon("DWARF",-10,range(25,30),range(7,10),
+	range(30,58), range(6,10),
+ {
+  { prob=3, item=ITEMS.Rejuvenant, qty=1 },
+  { prob=3, item=ITEMS.SmokeBomb, qty=1 },
+  { prob=1, item=ITEMS.Magnet, qty=1 },
+ }),
  defMon("MIMIC",-14,range(1,1),range(1,1),
-	range(15,35), range(3,6),
+	range(15,40), range(3,6),
  {
   { prob=2, item=ITEMS.Mace, qty=1 },
   { prob=2, item=ITEMS.Spinach, qty=range(1,3) },
@@ -1682,7 +1683,7 @@ MONSTERS = {
   { prob=5, item=ITEMS.Blood, qty=range(3,5) },
  }),
  defMon("EVIL COOK",-21,range(25,35),range(5,8),
-	range(20,60), range(5,8),
+	range(20,50), range(5,8),
  {
   { prob=6, item=ITEMS.Bread, qty=range(2,3) },
   { prob=4, item=ITEMS.Tomato, qty=range(2,3) },
@@ -1690,10 +1691,16 @@ MONSTERS = {
   { prob=5, item=ITEMS.Fork, qty=1 },
  }),
  defMon("SPIDER",-16,range(18,25),range(8,12),
-	range(30,1000), range(10,12),
+	range(30,55), range(10,12),
  {
   { prob=3, item=ITEMS.Venom, qty=range(4,6) },
   { prob=5, item=ITEMS.Blood, qty=range(3,5) },
+ }),
+ defMon("HELLFLY",-22,range(8,12),range(3,10),
+	range(20,40), range(4,6),
+ {
+  { prob=3, item=ITEMS.Venom, qty=range(3,4) },
+  { prob=3, item=ITEMS.Blood, qty=range(2,4) },
  }),
  
  defMon("GOLEM",-8,range(50,60),range(15,20),
@@ -1706,8 +1713,8 @@ MONSTERS = {
  {
   { prob=5, item=ITEMS.Ectoplasm, qty=range(2,6) },
  }),
- defMon("SUCCUBUS",-17,range(40,50),range(8, 12),
-	range(30,1000), range(10,12),
+ defMon("SUCCUBUS",-17,range(40,60),range(20, 25),
+	range(45,1000), range(10,12),
  {
   { prob=1, item=ITEMS.Helm, qty=1 },
   { prob=5, item=ITEMS.Gold, qty=range(10,20) },
@@ -1726,7 +1733,7 @@ MONSTERS = {
   { prob=1, item=ITEMS.Diamond, qty=1 },
  }),
  defMon("ENT",-20,range(30, 150),range(10,20),
-	range(25,45), range(20,22),
+	range(35,55), range(20,22),
  {
   { prob=5, item=ITEMS.Rejuvenant, qty=range(2,4) },
   { prob=3, item=ITEMS.Gold, qty=100 },
@@ -1765,7 +1772,15 @@ STEP = {
 pg.inventory = {
  [ITEMS.SmallPotion] = 3,
  [ITEMS.Key] = 50,
- [ITEMS.Rock] = 50,
+
+--[[ [ITEMS.Venom] = 50,
+ [ITEMS.Ectoplasm] = 50,
+ [ITEMS.Phlogiston] = 50,
+ [ITEMS.MintLeaf] = 50,
+ [ITEMS.Bomb] = 50,
+ [ITEMS.Rejuvenant] = 20,
+ [ITEMS.Shirt] = 50,
+ [ITEMS.Pants] = 50, [ITEMS.Rock] = 50,
  [ITEMS.Gold] = 500,
  [ITEMS.Diamond] = 50,
  [ITEMS.Elixir] = 50,
@@ -1777,14 +1792,6 @@ pg.inventory = {
  [ITEMS.Clover] = 20,
  [ITEMS.Magnet] = 20,
  [ITEMS.Scroll] = 20,
---[[ [ITEMS.Venom] = 50,
- [ITEMS.Ectoplasm] = 50,
- [ITEMS.Phlogiston] = 50,
- [ITEMS.MintLeaf] = 50,
- [ITEMS.Bomb] = 50,
- [ITEMS.Rejuvenant] = 20,
- [ITEMS.Shirt] = 50,
- [ITEMS.Pants] = 50,
  [ITEMS.Stick] = 50,
  [ITEMS.Phlogiston] = 50,]]
 }
@@ -1916,14 +1923,23 @@ end
 -- 069:4444100014441000144110001441000014410000141100001410000014100000
 -- 078:0001444400014441000114410000144100001441000011410000014100000141
 -- 079:4444444444444444444444442444444444444444444444444444444444444444
+-- 081:0000000000000000000008000000088800008228000822880082888800828888
+-- 082:0000000000000000000000000000000088000000888000008880000088880000
 -- 084:4444442444444441444444414444441144444414444444444444444444444444
 -- 085:1410000044100000411000004100000041000000100000001000000010000000
 -- 094:0000014100000144000001140000001400000014000000140000001400000011
 -- 095:4244444414244444144444441124444441244444414444444414444434144444
+-- 097:00888888008888cc044ccccc0cccc2c20ccccccc044ccccc0444cccc00444444
+-- 098:8888000088880000ccc44000ccccc003ccccc000ccc44000c444400044440044
+-- 099:0000000000000000000000003300000030000000300000003000000040000000
 -- 100:4444444444441444444414414444444144444441443333414344444143444441
 -- 101:1000000010000000100000000000000000000000000000000000000010000000
 -- 110:0000000100000001000000010000000100000001000000010000000100000001
 -- 111:4414444442114444434144444341444443414444444444444441444444314444
+-- 112:0000000000000000000000440000004100000044000000040000000400000004
+-- 113:0004444444441444411114441111114111111111444111111111114111111141
+-- 114:4400044141444411111111111111144411444400114444441111111411111114
+-- 115:4400000014000000140000004000000000000000000000000000000000000000
 -- 116:4344444443444444333313344444344444443444444434444444344433333344
 -- 117:1000000010000000100000001000000010000000100000001000000010000000
 -- 126:0000000100000001000000010000000100000001000000010000000100000001
